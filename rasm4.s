@@ -7,49 +7,50 @@
 
 .global _start // Provides program starting address
 	
-	.equ MAX_BYTES, 1024	// Input maximum bytes
+	.equ MAX_BYTES, 512	// Input maximum bytes
 	.data 		// Data section
 
 //Strings for output format
-szHeader:		  .asciz	"Names: Natasha Wu & Andrew Gharios\nProgram: rasm4.asm\nClass: CS 3B\nDate: 11/11/2023\n"
+szHeader:		  .asciz	"Names: Natasha Wu & Andrew Gharios\nProgram: rasm4.asm\nClass: CS 3B\nDate: 11/13/2023\n"
 szOutfile:		  .asciz "output.txt"
 szTitle:		  .asciz  "\nRASM4 TEXT EDITOR\n"
 szMem:	      	  .asciz  "Data Structure Memory Consumption: "
 szBytes:		  .asciz  " bytes\n"
-szNumnodes:		  .asciz  "Number of Nodes: "
-szEnterstr:	 	  .asciz  "Enter string: "
-szEnterline:	  .asciz  "Enter line number: "
+szNumnodes:		  .asciz  "\nNumber of Nodes: "
+szEnterstr:	 	  .asciz  "\nEnter string: "
+szEnterline:	  .asciz  "\nEnter line number: "
 szInvalidIn:	  .asciz  "Invalid index, not in range\n"
 szInvalidIn2:	  .asciz  "Invalid input\n"
 szEnd:			  .asciz  "Program ended. Thank you for using our program!\n"
-szEmpty:		  .asciz  "List is empty!\n"
+szEmpty:		  .asciz  "\nList is empty!\n"
 szEndl:			  .asciz  "\n"
 szContinue:       .asciz  "\n...enter to continue..."
 szFileread:  	  .asciz  "FILE READ from \"input.txt\""
 szFilewrite:   	  .asciz  "FILE SAVED to \"output.txt\""
 szRemove: 		  .asciz  "...has been removed...\n"
+szList:			  .asciz  "\nAll values in Linked List:\n "
 szLeftB:		  .asciz  "["
 szRightB:		  .asciz  "] "
+szEOF:		.asciz	"Reached the End of File\n"
+szERROR:	.asciz	"FILE READ ERROR\n"
 
-szTemp:			.skip 22	// Temporary storage for output
-kbBuf:			.skip 1024	// Keyboard buffer
+szTemp:			.skip 512	// Temporary storage for output
 headPtr:		.quad 0		// headPtr
 tailPtr:		.quad 0 	// tailPtr
 dbLength:		.quad 0		// storage for strlength
 dbIndex:		.quad 0		// index count
-iBytecount:		.word 0		// Bytes space for memory usage
-iNodecount:		.word 0     // Number of nodes space
-chEndl:			.byte 10	// char endline
+iBytecount:		.quad 0		// Bytes space for memory usage
+iNodecount:		.quad 0     // Number of nodes space
+chCr:			.byte 10	// char endline
 chNull:			.byte 0		// char null(\n)
- 
+iFD:			.byte 0		// byte to store file director
 
 	.text
 _start: 
 // ========================== Class Header ========================== //
 	ldr x0,=szHeader  // Loads x0 with szHeaders address.
 	bl putstring 	  // Call putstring to print header.
-	
-	ldr x0, =chEndl			// loads address of chEndl into x0
+	ldr x0, =chCr			// loads address of chEndl into x0
 	bl  putch				// branch and link function putch
 	
 // ========================== Main loop ========================== //
@@ -84,7 +85,7 @@ mainLoop:
 	bl putstring		// call putstring
 	
 	// Prompt user with menu and receive input
-	bl menuinput
+	bl menuinput		// branch to menu
 	
 	//switch input
 	cmp w0,#'1'			// Compare returned value with 1
@@ -112,7 +113,7 @@ mainLoop:
 	cmp w0,#'6'			// Compare returned value with 6
 	beq saveFile		// Branch to save file
 	
-	cmp w0,#'B'			// Compare returned value with B
+	cmp w0,#'7'			// Compare returned value with B
 	beq endProgram		// Branch to input from file
 
 // ========================== printAll ========================== //
@@ -121,54 +122,16 @@ printAll:
 	ldr x1,[x1]			// Load value inside Inodecount into x1
 	cmp x1,#0			// Compare nodecount with 0
 	beq	emptyList		// branch to empty list if nodecount == 0
-	mov x21,x1			// copy value into x21
 	
-	str x30, [sp, #-16]!	// Store the LR onto the stack
+	ldr x0,=headPtr		// Load x0 with HeadPtrs address
+	ldr x1,=iNodecount	// load x1 with Node count pointer
+	ldr x1,[x1]			// Load value inside Inodecount into x1
+	bl printList		// Branch and link to printlist
 	
-	ldr x0,=headPtr		// load x0 with head pointer
-	mov x20,x0			// Copy address into x20
+	ldr x0, =chCr			// loads address of chEndl into x0
+	bl  putch				// branch and link function putch
 	
-	
-printLoop:
-	ldr x0,=szLeftB		// Load x0 with Left bracket string address
-	bl putstring		// branch to putstring
-	
-	ldr x0,=dbIndex		// Load x0 with dbIndexs address
-	ldr x0,[x0]			// Load index from dbIndex into x0
-	ldr x1,=szTemp		// Load szTemps address into x1
-	bl int64asc			// convert from int64 to asciz
-	ldr x0,=szTemp		// Load szTemps address in x0
-	bl putstring		// branch to print string
-	
-	ldr x0,=szRightB	// Load x0 with Left bracket string address
-	bl putstring		// branch to putstring
-
-	ldr x0,[x20,#0]		// Address of current string headptr is pointing to
-	bl putstring		// call putstring to print at current address
-	
-	ldr x0,chCr			// Load x0 with Carriage return byte
-	bl putch			// Call putch
-	
-	ldr x0,=dbIndex		// Load dbIndexs address into x0
-	ldr x1,[x0]			// Load the value inside dbIndex into x1
-	add x1,x1,#1		// Increment
-	str x1,[x0]			// Store incremented value back into dbIndex
-	
-	sub x21,x21,#1		// decrement nodeCounter Copy
-	cmp x21,#0			// Check if nodeCount copy has reached 0
-	beq endPrint		// Stop printing when all nodes have been traversed
-	
-	ldr x20,[x20,#8]	// Increment node address to next one
-	b printLoop			// branch back to printing loop
-	
-endPrint:
-	ldr x0,=dbIndex		// Load dbIndexs address into x0
-	mov x1,#0			// Move a 0 into x1
-	str x1,[x0]			// Reset dbIndex to 0
-	
-	ldr x30, [sp], #16	// reload LR from stack
-	
-	RET 				// Return
+	b mainLoop			// Branch back to beginning of progrma
 
 emptyList:
 	ldr x0,=szEmpty		// Load x0 with szEmptys address
@@ -179,6 +142,9 @@ emptyList:
 // ========================== inKeyboard ========================== //
 inKbd:
 	//Input from Keyboard
+	ldr x0,=szEnterstr	// Load x0 with szEnterstrs address
+	bl putstring		// branch to putstring
+	
 	ldr x0,=szTemp		// Load x0 with szTemps address
 	mov x1,MAX_BYTES	// Move into x1 MAX_BYTES constant
 	bl getstring
@@ -186,10 +152,23 @@ inKbd:
 	ldr x0,=iNodecount	// Load x0 with Nodecounts address
 	ldr x0,[x0]			// Load value in nodecounts address into x0
 	cmp x0,#0			// Check if nodecount is 0
-	beq addFirst		// Branch to addFirst if its the Firstnode in the list
+	beq first			// Branch to addFirst if its the Firstnode in the list
 	
-	b addTail			// Otherwise branch to addTail
+	ldr x0,=szTemp		// Load x0 with szTemps address
+	bl String_length	// Branch to string length
+	add x0,x0,#1		// Add an extra byte for null
+	bl addTail			// Otherwise branch to addTail
+	
+	b mainLoop			// Branch back to beginning of program
 
+first:
+	ldr x0,=szTemp		// Load x0 with szTemps address
+	bl String_length	// Branch to string length
+	add x0,x0,#1		// Add an extra byte for null
+	
+	bl addFirst			// Branch and link to add first
+	b mainLoop			// Branch back to beginning of program
+	
 // ========================== inFile ========================== //
 inFile:
 
@@ -209,111 +188,6 @@ saveFile:
 
 
 
-// ========================== addFirst ========================== //
-addFirst:
-	ldr x0,=szTemp		// Load x0 with szTemps address
-	bl String_length	// Branch to string length
-	add x0,x0,#1		// Add an extra byte for null
-	
-	ldr x1,=dbLength	// Load dbLengths address into x1
-	str x0,[x1]			// Store returned stringlength into dbLength(x1)
-	bl malloc			// Malloc space for new Node
-	
-	ldr x1,=szTemp		// Load szTemps address into x1
-	mov x20,#0			// Initialize x20 to 0 for index
-	mov x21,#0			// Initialize x21 to 0 for new string index
-	
-addFirstLoop:
-	ldrb w2,[x1,x20]	// Load first byte of string to copy into w2
-	strb w2,[x0,x21]	// Store the byte in w2 into new mallocd space
-	
-	add x20,x20,#1		// Index++
-	add x21,x21,#1		// Index++
-	
-	ldr x19,=dbLength	// Load saved strlengths address into x19
-	ldr x19,[x19]		// Load value from address into x19
-	cmp x21,x19			// Compare index with strlength
-	bne addFirstLoop	// Loop back to beginning to keep adding
-	
-	mov x22,x0			// Copy address of mallocd space into x22
-	mov x0,#16			// mov 16 into x0
-	bl malloc			// Malloc 16 bytes
-	
-	str x22,[x0]		// Point new mallocd node to mallocd string
-	
-	ldr x1,=headPtr		// Load headPtrs address into x1
-	str x0,[x1]			// Point headptr to new mallocd Node
-	mov x0,#0			// Move a 0 into x0
-	str x0,[x1,#8]		// Point first Nodenext* to 0(Null)
-	
-	ldr x1,=tailPtr		// Load tailPtrs address into x1
-	ldr x0,=headPtr		// Load headPtrs address into x0
-	ldr x0,[x0]			// Load address headPtr is pointing to
-	str x0,[x1]			// Point tail to the same address
-	
-	mov x1,#1			// Move a 1 into x1
-	ldr x0,=iNodecount	// Load Nodecounts address into x0
-	str x1,[x0]			// Store 1 into nodecount
-	
-	//calculate bytes
-	ldr x0,iBytecount	// Load Bytecounts address into x0
-	ldr x2,[x0]			// Copy value in Bytecount into x2
-	add x1,x1,x2		// add Bytecount with with saved value in x1
-	str x1,[x0]			// Store new bytecount from x1 into the address
-	
-	b mainLoop			// Jump back to beginning of program when node has been added
-
-// ========================== addTail ========================== //
-addTail:
-	ldr x0,=szTemp		// Load szTemps address into x0
-	bl String_length	// Branch to string length
-	add x0,x0,#1		// Add an extra byte for null
-	
-	ldr x1,=dbLength	// Load dbLengths address into x1
-	str x0,[x1]			// Store strlength into dbLengths address
-	bl malloc			// Branch to malloc
-	
-	ldr x1,=szTemp		// Load szTemps address into x1
-	mov x20,#0			// Initialize x20 to 0 for index
-	mov x21,#0			// Initialize x21 to 0 for new string index
-	
-addTailLoop:
-	ldrb w2,[x1,x20]	// Load first byte of string to copy into w2
-	strb w2,[x0,x21]	// Store the byte in w2 into new mallocd space
-	
-	add x20,x20,#1		// Index++
-	add x21,x21,#1		// Index++
-	
-	ldr x19,=dbLength	// Load saved strlengths address into x19
-	ldr x19,[x19]		// Load value from address into x19
-	cmp x21,x19			// Compare index with strlength
-	bne addTailLoop		// Loop back to beginning to keep adding
-	
-	mov x22,x0			// Copy address of mallocd space into x22
-	mov x0,#16			// mov 16 into x0
-	bl malloc			// Malloc 16 bytes
-	
-	str x22,[x0]		// Point new mallocd node to mallocd string
-	
-	ldr x1,=tailPtr		// Load tailPtrs address into x1
-	str x1,[x1]			// load node that tailPtr is pointing to
-	str x0,[x1,#8]		// Point tailPtr to new mallocd space
-	ldr x1,=tailPtr		// Load tailPtrs address into x1
-	str x0,[x1]			// Point tail to the same address
-	
-	ldr x0,=iNodecount	// Load Nodecounts address into x0
-	ldr x1,[x0]			// Copy nodecount into x1
-	add x1,x1,#1		// increment nodecount by 1
-	str x1,[x0]			// Store new nodecount
-	
-	//calculate bytes
-	ldr x0,iBytecount	// Load Bytecounts address into x0
-	ldr x2,[x0]			// Copy value in Bytecount into x2
-	add x1,x1,x2		// add Bytecount with with saved value in x1
-	str x1,[x0]			// Store new bytecount from x1 into the address
-	
-	b mainLoop			// Jump back to beginning of program when node has been added
-
 endProgram:
 // ========================== _end ========================== //
 _end:
@@ -327,10 +201,13 @@ _end:
 // ====================== HELPER FUNCTIONS ====================== //
 // ============================================================== //
 
+
+
+// ========================== getline ========================== //
 //**GETCHAR**//	
 getchar:
 	mov x2, #1		// mov 1 into x2
-	mov x8, #NR_read // read
+	mov x8, #63 // read
 	svc 0			// does the lr change
 	RET				// Return char
 	
@@ -377,4 +254,258 @@ ERROR:
 skip:
 	ldr x30, [sp], #16	// reload LR from stack
 	RET					// return getline
+	
+	
+
+// ========================== addFirst ========================== //
+// Receives: X0 - stringlength
+// Returns: nothing
+ 
+addFirst:
+	// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+	
+	ldr x1,=dbLength	// Load dbLengths address into x1
+	str x0,[x1]			// Store returned stringlength into dbLength(x1)
+	
+	ldr x0,=dbLength	// Load dbLengths address into x0
+	ldr x0,[x0]			// Load value inside dbLength
+	bl malloc			// Malloc space for new Node
+	
+	mov x20,#0			// Initialize x20 to 0 for index
+	mov x21,#0			// Initialize x21 to 0 for new string index
+	
+addFirstLoop:
+	ldr x1,=szTemp		// Load szTemps address into x1
+	ldrb w2,[x1,x20]	// Load first byte of string to copy into w2
+	strb w2,[x0,x21]	// Store the byte in w2 into new mallocd space
+	
+	add x20,x20,#1		// Index++
+	add x21,x21,#1		// Index++
+	
+	ldr x19,=dbLength	// Load saved strlengths address into x19
+	ldr x19,[x19]		// Load value from address into x19
+	cmp x21,x19			// Compare index with strlength
+	bne addFirstLoop	// Loop back to beginning to keep adding
+	
+	mov x22,x0			// Copy address of mallocd space into x22
+	mov x0,#16			// mov 16 into x0
+	bl malloc			// Malloc 16 bytes
+	
+	str x22,[x0]		// Point new mallocd node to mallocd string
+	
+	ldr x1,=headPtr		// Load headPtrs address into x1
+	str x0,[x1]			// Point headptr to new mallocd Node
+	mov x0,#0			// Move a 0 into x0
+	str x0,[x1,#8]		// Point first Nodenext* to 0(Null)
+	
+	ldr x1,=tailPtr		// Load tailPtrs address into x1
+	ldr x0,=headPtr		// Load headPtrs address into x0
+	ldr x0,[x0]			// Load address headPtr is pointing to
+	str x0,[x1]			// Point tail to the same address
+	
+	mov x1,#1			// Move a 1 into x1
+	ldr x0,=iNodecount	// Load Nodecounts address into x0
+	str x1,[x0]			// Store 1 into nodecount
+	
+	//calculate bytes
+	ldr x0,=dbLength	// Load strlengths address into x0
+	ldr x0,[x0]			// Load value in address into x0
+	mov x1,#16			// move 16 into x1
+	add x1,x0,x1		// Add 16 bytes to strlength and store in x1
+	ldr x0,=iBytecount	// Load Bytecounts address into x0
+	ldr x2,[x0]			// Copy value in Bytecount into x2
+	add x1,x1,x2		// add Bytecount with with saved value in x1
+	str x1,[x0]			// Store new bytecount from x1 into the address
+	
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+	
+	RET			// return
+
+// ========================== addTail ========================== //
+// Receives: X0 - stringlength
+// Returns: nothing
+
+addTail:
+	// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+	
+	ldr x1,=dbLength	// Load dbLengths address into x1
+	str x0,[x1]			// Store strlength into dbLengths address
+	
+	ldr x0,=dbLength	// Load dbLengths address into x0
+	ldr x0,[x0]			// Load value inside dbLength
+	bl malloc			// Branch to malloc
+	
+	
+	mov x20,#0			// Initialize x20 to 0 for index
+	mov x21,#0			// Initialize x21 to 0 for new string index
+	
+addTailLoop:
+	ldr x1,=szTemp		// Load szTemps address into x1
+	ldrb w2,[x1,x20]	// Load first byte of string to copy into w2
+	strb w2,[x0,x21]	// Store the byte in w2 into new mallocd space
+	
+	add x20,x20,#1		// Index++
+	add x21,x21,#1		// Index++
+	
+	ldr x19,=dbLength	// Load saved strlengths address into x19
+	ldr x19,[x19]		// Load value from address into x19
+	cmp x21,x19			// Compare index with strlength
+	bne addTailLoop		// Loop back to beginning to keep adding
+	
+	mov x22,x0			// Copy address of mallocd space into x22
+	mov x0,#16			// mov 16 into x0
+	bl malloc			// Malloc 16 bytes
+	
+	str x22,[x0]		// Point new mallocd node to mallocd string
+	
+	ldr x1,=tailPtr		// Load tailPtrs address into x1
+	ldr x1,[x1]			// load node that tailPtr is pointing to
+	str x0,[x1,#8]		// Point tailPtr to new mallocd space
+	ldr x1,=tailPtr		// Load tailPtrs address into x1
+	str x0,[x1]			// Point tail to the same address
+	
+	ldr x0,=iNodecount	// Load Nodecounts address into x0
+	ldr x1,[x0]			// Copy nodecount into x1
+	add x1,x1,#1		// increment nodecount by 1
+	str x1,[x0]			// Store new nodecount
+	
+	//calculate bytes
+	ldr x0,=dbLength	// Load strlengths address into x0
+	ldr x0,[x0]			// Load value in address into x0
+	mov x1,#16			// move 16 into x1
+	add x1,x0,x1		// Add 16 bytes to strlength and store in x1
+	ldr x0,=iBytecount	// Load Bytecounts address into x0
+	ldr x2,[x0]			// Copy value in Bytecount into x2
+	add x1,x1,x2		// add Bytecount with with saved value in x1
+	str x1,[x0]			// Store new bytecount from x1 into the address
+	
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+	
+	RET			// return
+	
+// ========================== printList ========================== //
+printList:
+	// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+	
+	mov x21,x1			// copy number of nodes into x19
+	mov x20,x0			// Copy address of headPtr into x20
+	ldr x20,[x20]		// Load value stored inside address of x20
+	
+printLoop:
+	ldr x0,=szLeftB		// Load x0 with Left bracket string address
+	bl putstring		// branch to putstring
+	
+	ldr x0,=dbIndex		// Load x0 with dbIndexs address
+	ldr x0,[x0]			// Load index from dbIndex into x0
+	ldr x1,=szTemp		// Load szTemps address into x1
+	bl int64asc			// convert from int64 to asciz
+	ldr x0,=szTemp		// Load szTemps address in x0
+	bl putstring		// branch to print string
+	
+	ldr x0,=szRightB	// Load x0 with Left bracket string address
+	bl putstring		// branch to putstring
+
+	ldr x0,[x20,#0]		// Address of current string headptr is pointing to
+	bl putstring		// call putstring to print at current address
+	
+	ldr x0,=chCr		// Load x0 with Carriage return byte
+	bl putch			// Call putch
+	ldr x0,=chCr		// Load x0 with Carriage return byte
+	bl putch			// Call putch
+	
+	ldr x0,=dbIndex		// Load dbIndexs address into x0
+	ldr x1,[x0]			// Load the value inside dbIndex into x1
+	add x1,x1,#1		// Increment
+	str x1,[x0]			// Store incremented value back into dbIndex
+	
+	sub x21,x21,#1		// decrement nodeCounter Copy
+	cmp x21,#0			// Check if nodeCount copy has reached 0
+	beq endPrint		// Stop printing when all nodes have been traversed
+	
+	ldr x20,[x20,#8]	// Increment node address to next one
+	b printLoop			// branch back to printing loop
+	
+endPrint:
+	ldr x0,=dbIndex		// Load dbIndexs address into x0
+	mov x1,#0			// Move a 0 into x1
+	str x1,[x0]			// Reset dbIndex to 0
+	
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+	
+	RET			// return
 	

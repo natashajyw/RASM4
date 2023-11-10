@@ -10,8 +10,8 @@
 	.equ MAX_BYTES, 1024
 	.data
 //String with entire menu prompt
-szPrompt:   .asciz	"\n<1> View all strings\n<2> Add string\n		<a> from Keyboard\n		<b> from File. Static file named input.txt\n<3> Delete string. Given an index #, delete the entire string and de-allocate memory (including the node).\n<4> Edit string. Given an index #, replace old string w/ new string. Allocate/De-allocate as needed.\n<5> String search. Regardless of case, return all strings that match the substring given.\n<6> Save File (output.txt)\n<7> Quit\n\nmenuinput: "
-szOption2:	.asciz  "<a> from Keyboard\n<b> from File. Static file named input.txt\nEnter selection: "
+szPrompt:   .asciz	"\n<1> View all strings\n\n<2> Add string\n		<a> from Keyboard\n		<b> from File. Static file named input.txt\n\n<3> Delete string. Given an index #, delete the entire string and de-allocate memory (including the node).\n\n<4> Edit string. Given an index #, replace old string w/ new string. Allocate/De-allocate as needed.\n\n<5> String search. Regardless of case, return all strings that match the substring given.\n\n<6> Save File (output.txt)\n\n<7> Quit\n\nMenu Selection: "
+szOption2:	.asciz  "\n<a> from Keyboard\n<b> from File. Static file named input.txt\n\nEnter selection: "
 szFilename: .asciz	"input.txt"	// string of files name
 szInvalid:	.asciz  "\nERROR: Invalid Input!\n"
 szInput:	.skip 1024			// input buffer
