@@ -7,12 +7,23 @@
 
 .global _start // Provides program starting address
 	
+	.equ O_RDONLY, 0	// Read only code
+	.equ O_WRONLY, 1	// Write only code
+	.equ O_CREAT,  0100	// Create, read & write code
+	.equ S_RDWR,   0660 // chmod permissions
+	.equ AT_FDCWD, -100	// local directory (file descriptor)
+	.equ NR_openat, 56  // Openat code
+	.equ NR_close,	57	// close code
+	.equ NR_write,	64	// writing code
+	.equ NR_read,	63	// writing code
+	.equ NR_exit,	93	// exit code
 	.equ MAX_BYTES, 512	// Input maximum bytes
 	.data 		// Data section
 
 //Strings for output format
 szHeader:		  .asciz	"Names: Natasha Wu & Andrew Gharios\nProgram: rasm4.asm\nClass: CS 3B\nDate: 11/13/2023\n"
 szOutfile:		  .asciz "output.txt"
+szInfile:		  .asciz "input.txt"
 szTitle:		  .asciz  "\nRASM4 TEXT EDITOR\n"
 szMem:	      	  .asciz  "Data Structure Memory Consumption: "
 szBytes:		  .asciz  " bytes\n"
@@ -21,13 +32,10 @@ szEnterstr:	 	  .asciz  "\nEnter string: "
 szEnterline:	  .asciz  "\nEnter line number: "
 szInvalidIn:	  .asciz  "Invalid index, not in range\n"
 szInvalidIn2:	  .asciz  "Invalid input\n"
-szEnd:			  .asciz  "Program ended. Thank you for using our program!\n"
+szEnd:			  .asciz  "Thank you for using our program!\n"
 szEmpty:		  .asciz  "\nList is empty!\n"
 szEndl:			  .asciz  "\n"
-szContinue:       .asciz  "\n...enter to continue..."
-szFileread:  	  .asciz  "FILE READ from \"input.txt\""
-szFilewrite:   	  .asciz  "FILE SAVED to \"output.txt\""
-szRemove: 		  .asciz  "...has been removed...\n"
+szEndfree:		  .asciz  "\nThe Linked-List has been free'd\n\n"
 szList:			  .asciz  "\nAll values in Linked List:\n "
 szLeftB:		  .asciz  "["
 szRightB:		  .asciz  "] "
@@ -171,7 +179,51 @@ first:
 	
 // ========================== inFile ========================== //
 inFile:
+	//Open the FILE
+	// Open output.txt for writing
+	mov x0, #AT_FDCWD // mov into x0 local directory code
+	ldr x1, =szInfile	  // Load x1 with file name address
+	mov x2, #O_CREAT  // mov into x2 create if doesnt exist code
+	mov x3,	#S_RDWR	  // mov into x3 RW permission
+	mov x8,#NR_openat // mov into x8 open at code
+	svc 0 			  // Open file for read only access
+	
+	ldr x4,=iFD		 	// Load iFDs address into x1
+	strb w0,[x4]		// Load returned file discriptor byte into iFD
+	
+inFileLoop:
+	ldr x1,=szTemp		// Load szTemps address into x1
+	bl getline			// branch and link to getline
+	
+	cmp x0,#0			// Compare returned byte with 0
+	beq fileDone		// Jump to file done if nothing has been Read
+	
+	ldr x0,=iFD		 	// Load iFDs address into x1
+	ldrb w0,[x0]			// Reload the file discriptor
 
+	b inFileLoop		// reloop to continue reading file
+
+fileDone:
+	ldr x0,=iNodecount	// Load x0 with Nodecounts address
+	ldr x0,[x0]			// Load value in nodecounts address into x0
+	cmp x0,#0			// Check if nodecount is 0
+	beq firstRead		// Branch to addFirst if its the Firstnode in the list
+
+	ldr x0,=szTemp		// Load szTemps address into x0
+	bl String_length	// Branch to string length
+	add x0,x0,#1		// Increment x0
+	bl addTail			// branchd and link to addTail
+
+	b mainLoop			// Branch back to mainloop
+
+firstRead:	
+	ldr x0,=szTemp		// Load szTemps address into x0
+	bl String_length	// Branch to string length
+	add x0,x0,#1		// Increment x0
+	bl addFirst			// branchd and link to addTail
+
+	b mainLoop			// Branch back to mainloop
+	
 // ========================== delStr ========================== //
 delStr:
 
@@ -187,13 +239,23 @@ saveFile:
 
 
 
-
-endProgram:
 // ========================== _end ========================== //
-_end:
+endProgram:
+	ldr x0,=headPtr		// load x0 with headPtr
+	bl freeList			// branch to freeList
+
+	// Close file	
+	ldr x0,=iFD		 	// Load x0 with iFDs address
+	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
+	mov x8, #NR_close 	// mov into x8 exit code
+	svc 0			  	// Close the file
+
+	ldr x0,=szEnd	  	// Load x0 with end of program msg
+	bl putstring	  	// branch to putstring
+
 // End of program parameters
 	mov X0, #0  			// 0 to return
-	mov X8, #93 			// Linux code 93 terminates
+	mov X8, #NR_exit 		// Linux code 93 terminates
 	svc 0	    			// Call Linux to execute
 
 
@@ -207,23 +269,36 @@ _end:
 //**GETCHAR**//	
 getchar:
 	mov x2, #1		// mov 1 into x2
-	mov x8, #63 // read
+	mov x8, #NR_read // read
 	svc 0			// does the lr change
 	RET				// Return char
 	
 //**GETLINE**//
 getline:
-	str x30, [sp, #-16]!	// Store the LR onto the stack
+		// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
 	
 top:
 	bl getchar		// Branch to getchar
 	ldrb w2,[x1]	// load byte in x1 into w2
 	
-	cmp w2, #0x0a	// Is char LF?
+	cmp w2, #0xa	// Is char LF?
 	beq EOLINE		// branch to end of line
-	
+
 	cmp w0, #0x0	// nothing read from file
-	beq EOF			// branch to end of line
+	beq EOF			// branch to end
 	
 	cmp w0, #0x0	// compare byte with 0x0
 	blt ERROR		// branch to error
@@ -235,13 +310,15 @@ top:
 	b top			// branch to top
 
 EOLINE:
+	//add x1,x1,#1	// Increment x1	
 	mov w2, #0		// store null at the end of fileBuf replacing the lineFeed
 	strb w2, [x1]	// store w2 into x1
 	b skip			// branch to skip
-	
+
 EOF:
-	ldr x0, =szEOF	// Load szEOFs address into x0
-	mov x0, x19		// copy x19 into x0
+	add x1,x1,#1	// Increment x1
+	mov w2, #0		// store null at the end of fileBuf replacing the lineFeed
+	strb w2, [x1]	// store w2 into x1
 	b skip			// branch to skip
 	
 ERROR:
@@ -252,9 +329,23 @@ ERROR:
 	b skip				// branch to skip
 	
 skip:
-	ldr x30, [sp], #16	// reload LR from stack
+	//add x1,x1,#1	// Increment x1
+	//mov w2, #0		// store null at the end of fileBuf replacing the lineFeed
+	//strb w2, [x1]	// store w2 into x1
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
 	RET					// return getline
-	
 	
 
 // ========================== addFirst ========================== //
@@ -509,3 +600,74 @@ endPrint:
 	
 	RET			// return
 	
+
+// ========================== freeList ========================== //
+// X0 - headPtr address
+
+freeList:
+	// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+
+	mov x20,x0		// Move headptr address into x20
+	ldr x20,[x20]	// Load address of the first node its potinting to
+
+freeLoop:
+	ldr x19,[x20,#8]	// Load next address
+	cmp x19,#0			// Check if next is null
+	beq skiptoLast		// skip to last node
+	
+	ldr x21,[x19,#0]	// Holds nextNode's string address
+
+skiptoLast:
+	// save the addressses onto the stack
+	str x19,[SP,#-16]!
+	str x21,[SP,#-16]!
+
+	ldr x0,[x20,#0]		// Load address of current string 
+	bl free				// Branch to free
+
+	mov x0,x20			// Copy address of the node
+	bl free				// Free the address as well
+
+	ldr x21,[SP],#16	// Reload saved nextNodes strings address
+	ldr x19,[SP],#16	// Reload saved nextNodes address
+
+	mov x20,x19			// Load nextNode into x20
+
+	cmp x20,#0			// Check if nextNode is null
+	beq endFree			// Jump to end if all nodes have been freed
+
+	b freeLoop			// Jump back to continue freeing
+
+endFree:
+	ldr x0,=szEndfree	// Load szEndfrees address
+	bl putstring
+
+// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+	
+	RET			// return
+
