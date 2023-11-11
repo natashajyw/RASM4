@@ -7,15 +7,13 @@
 //@ X0 is not preserved.
 	
 	.global menuinput
-	.equ MAX_BYTES, 1024
+	.equ MAX_BYTES, 512
 	.data
 //String with entire menu prompt
 szPrompt:   .asciz	"\n<1> View all strings\n\n<2> Add string\n		<a> from Keyboard\n		<b> from File. Static file named input.txt\n\n<3> Delete string. Given an index #, delete the entire string and de-allocate memory (including the node).\n\n<4> Edit string. Given an index #, replace old string w/ new string. Allocate/De-allocate as needed.\n\n<5> String search. Regardless of case, return all strings that match the substring given.\n\n<6> Save File (output.txt)\n\n<7> Quit\n\nMenu Selection: "
 szOption2:	.asciz  "\n<a> from Keyboard\n<b> from File. Static file named input.txt\n\nEnter selection: "
-szFilename: .asciz	"input.txt"	// string of files name
 szInvalid:	.asciz  "\nERROR: Invalid Input!\n"
-szInput:	.skip 1024			// input buffer
-chNull:		.byte 10			// byte containing a NULL
+szInput:	.skip 512			// input buffer
 
 	.text
 menuinput:
@@ -33,7 +31,8 @@ menuinput:
 	str x29, [sp, #-16]!
 	str x30, [sp, #-16]!
 	mov x29, sp		// setting stack frame
-	
+
+reInput:	
 	ldr x0,=szPrompt	// load x0 with prompt
 	bl putstring		// output Menu prompt
 	
@@ -77,7 +76,12 @@ menuinput:
 invalidInp:	
 	ldr x0,=szInvalid	// load x0 with szInvalids address
 	bl putstring		// branch to putstring
-	b menuinput			// branch back to beginning of menu
+	
+	ldr x0,=szInput		// load x0 with input buffers address
+	mov x1,#0			// Move a 0 into x1
+	str x1,[x0]		    // Store value in x1 into szInput
+
+	b reInput			// branch back to beginning of menu
 
 exit:
 	
