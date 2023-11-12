@@ -10,7 +10,10 @@
 	.equ O_RDONLY, 0	// Read only code
 	.equ O_WRONLY, 1	// Write only code
 	.equ O_CREAT,  0100	// Create, read & write code
+	.equ C_W,	   0101 // Create, write code
+	.equ A_RW,	  02002 // Append read and write
 	.equ S_RDWR,   0660 // chmod permissions
+	.equ S_RW,   0600	// chmod permissions
 	.equ AT_FDCWD, -100	// local directory (file descriptor)
 	.equ NR_openat, 56  // Openat code
 	.equ NR_close,	57	// close code
@@ -21,7 +24,7 @@
 	.data 		// Data section
 
 //Strings for output format
-szHeader:		  .asciz	"Names: Natasha Wu & Andrew Gharios\nProgram: rasm4.asm\nClass: CS 3B\nDate: 11/13/2023\n"
+szHeader:		  .asciz "Names: Natasha Wu & Andrew Gharios\nProgram: rasm4.asm\nClass: CS 3B\nDate: 11/13/2023\n"
 szOutfile:		  .asciz "output.txt"
 szInfile:		  .asciz "input.txt"
 szTitle:		  .asciz  "\nRASM4 TEXT EDITOR\n"
@@ -41,6 +44,9 @@ szLeftB:		  .asciz  "["
 szRightB:		  .asciz  "] "
 szEOF:		.asciz	"Reached the End of File\n"
 szERROR:	.asciz	"FILE READ ERROR\n"
+szSaveError: 	  .asciz "File could not be saved.\n"
+szSaveSuccess:	  .asciz "File saved successfully.\n"
+szGetFileName:	  .asciz "Please enter file name: "
 
 szTemp:			.skip 512	// Temporary storage for output
 headPtr:		.quad 0		// headPtr
@@ -214,6 +220,11 @@ fileDone:
 	add x0,x0,#1		// Increment x0
 	bl addTail			// branchd and link to addTail
 
+	// Close file	
+	ldr x0,=iFD		 	// Load x0 with iFDs address
+	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
+	mov x8, #NR_close 	// mov into x8 exit code
+	svc 0			  	// Close the file
 	b mainLoop			// Branch back to mainloop
 
 firstRead:	
@@ -222,10 +233,52 @@ firstRead:
 	add x0,x0,#1		// Increment x0
 	bl addFirst			// branchd and link to addTail
 
+	// Close file	
+	ldr x0,=iFD		 	// Load x0 with iFDs address
+	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
+	mov x8, #NR_close 	// mov into x8 exit code
+	svc 0			  	// Close the file
 	b mainLoop			// Branch back to mainloop
 	
 // ========================== delStr ========================== //
 delStr:
+	ldr x0,=iNodecount	// Load x0 with iNodecounts address
+	ldr x0,[x0]			// Load value in nodecounts address into x0
+	cmp x0,#0			// Check if nodecount is 0
+	beq delEmpty		// Branch to delEmpty if list is empty
+
+	ldr x0,=szEnterline	 // Load string to prompt for index
+	bl putstring		// branch and link function putstring
+
+	ldr x0,=szTemp		// Load x0 with szTemps address
+	mov x1,MAX_BYTES	// Move into x1 MAX_BYTES constant
+	bl getstring		// get input from keyboard
+		
+	ldr x0,=szTemp		// Load x0 with szTemps address
+	bl ascint64			// converts string to double
+	ldr x1,=iNodecount	// Load x1 with iNodecounts address
+	ldr x1,[x1]			// Load value in nodecounts address into x1
+	cmp x1,x0			// Check if nodecount is 0
+	ble delOutOfRange	// if nodecount >= input index, jump to delOutOfRange
+
+	mov x1,x0			// moves value of x0 into x1 (now contains index)
+	ldr x0,=headPtr		// loads value 0 into x20
+
+	b delIndex			// unconditional branch to delIndex
+	
+	b mainLoop			// unconditional branch to mainLoop
+
+delOutOfRange:
+	ldr x0,=szInvalidIn	// Load address of szInvalidIn into x0
+	bl  putstring		// print string
+
+	b mainLoop			// unconditional branch to mainLoop
+
+delEmpty:
+	ldr x0,=szEmpty		// Load address of szEmpty into x0
+	bl  putstring		// print string
+
+	b mainLoop			// unconditional branch to mainLoop
 
 // ========================== editStr ========================== //
 editStr:
@@ -235,20 +288,78 @@ searchStr:
 
 // ========================== saveFile ========================== //
 saveFile:
+	ldr x0, =iNodecount	// Load x0 with iNodecounts address
+	ldr x0, [x0]		// Load value in nodecounts address into x0
+	cmp x0, #0			// Check if nodecount is 0
+	beq saveError		// Branch to saveError if list is empty
 
+	// Get file name
+	ldr x0, =szGetFileName	// prompt user for file name
+	bl putstring			// prints prompt
+	ldr x0, =szTemp			// load address of szString into x0
+	mov x1, MAX_BYTES		// setting x1 to 512
+	bl getstring			// branch and link function getstring
 
+	// Open file
+	mov x0, #AT_FDCWD		// local directory
+	mov x8, #56 			// Openat command
+	ldr x1, =szTemp			// loads address of filename into x1
 
+	// Create file
+	mov x2, #C_W			// Create the new file
+	mov x3, #S_RW			// permissions
+	svc 0					// service call
 
-// ========================== _end ========================== //
-endProgram:
-	ldr x0,=headPtr		// load x0 with headPtr
-	bl freeList			// branch to freeList
+	ldr x1,=iFD				// Load x1 with iFds address
+	strb w0,[x1]			// Store returned file descriptor i iFD
+
+	ldr x19, =iNodecount	// loads address of iNodeCount into x19
+	ldr x19, [x19]			// Number of nodes stored in x19
+	ldr x20, =headPtr		// loads address of headPtr into x20
+	ldr x20, [x20]			// Address of node in x0
+
+saveLoop:
+	ldr x0, [x20, #0]	// Address of string in x0
+	bl String_length	// branch and link function String_length
+
+	mov x11, x0 		// String length is in x11 (ready for function)
+	ldr x10, [x20, #0] 	// get address of string into x10 for function
+
+	bl saveString		// branch and link function saveString
+
+	// Decrement the number of nodes
+	sub x19, x19, #1
+	cmp x19, #0
+	beq endSave
+
+	// Move to the next node
+	ldr x20, [x20, #8]
+	b saveLoop
+
+endSave:
+	ldr x0, =szSaveSuccess	// loads address of successful save in x0
+	bl  putstring			// prints
 
 	// Close file	
 	ldr x0,=iFD		 	// Load x0 with iFDs address
 	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
 	mov x8, #NR_close 	// mov into x8 exit code
 	svc 0			  	// Close the file
+
+    b mainLoop	// unconditional branch to mainLoop
+
+saveError:
+	ldr x0, =szSaveError 	// loads address of save error in x0
+	bl putstring			// prints
+
+	b mainLoop	// unconditional branch to mainLoop
+
+// ========================== _end ========================== //
+endProgram:
+	ldr x0,=headPtr		// load x0 with headPtr
+	bl freeList			// branch to freeList
+
+	
 
 	ldr x0,=szEnd	  	// Load x0 with end of program msg
 	bl putstring	  	// branch to putstring
@@ -671,3 +782,176 @@ endFree:
 	
 	RET			// return
 
+// ========================== delIndex ========================== //
+// X0 - headPtr address
+// X1 - index to be deleted
+
+delIndex:
+	// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+
+	mov x20,x0		// Move headptr address into x20
+	ldr x20,[x20]	// Load address of the first node its potinting to
+	
+	mov x21,x1		// move index # into x21
+	mov x22,#0		// x22 serves as counter (starts from 0)
+	
+	cmp x21,#0			// compares x21(index) with 0
+	beq delFirstIndex	// if equal, branch to delFirstIndex
+	
+	ldr x23,=iNodecount	// load address of nodecount into x23
+	ldr x23,[x23]		// load value of nodecount into x23
+	sub x23,x23,#1		// x23 = x23 - 1 (accurate range of indexes of list)
+	
+	cmp x21,x23			// compares x21(index) with x23(last # of index)
+	beq delLastIndex	// if equal, branch to delLastIndex
+	
+	b delIndexLoop		// unconditional branch to delIndexLoop
+	
+// ************* first index deletion ************* //
+delFirstIndex:
+	ldr x24,=iNodecount	// load address of nodecount into x24
+	ldr x24,[x24]		// load value of nodecount into x24
+
+delFirstIndexLoop:
+	
+
+	b delIndexEnd
+	
+// ************* last index deletion ************* //
+delLastIndex:
+	mov x25, #8			// Loads x25 into 
+
+delLastIndexLoop:
+	ldr x19,[x20,#8]	// Load next address
+	cmp x19,#0			// Check if next is null
+	b delLastIndexLoop	// 
+	
+	b delIndexEnd
+
+// ************* middle index deletion ************* //
+delIndexLoop:
+	cmp x22,x21			// compares counter to index
+	beq delIndexFound	// if equal, jump to delIndexFound
+	
+	
+	ldr x20,[x20,#8]	// Increment node address to next one
+	add x22,x22,#1		// x22 = x22 + 1
+	
+delIndexFound:
+	
+	b delIndexEnd
+	
+delIndexEnd:
+
+	
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+	
+	RET			// return
+	
+// ========================== saveString ========================== //
+// X10 - holds string
+// X11 - length of string
+saveString:
+	// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+
+	// ********************** Print to file ********************** //
+
+	// Open file
+	mov x0, #AT_FDCWD		// local directory
+	mov x8, #56 			// Openat command
+	ldr x1, =szTemp
+
+	// Create file
+	mov x2, #A_RW			// Create the new files
+	mov x3, #S_RW			// permissions
+	svc 0					// service call
+
+	// x0 now contains the file directory
+	// Write the string
+	mov x8, #64				// Write
+	mov x1, x10
+	mov x2, x11
+	svc 0
+	
+
+
+	// ********************** End Print to file ******************* //
+
+	// *********************** Print Return *********************** //
+
+	// Open file
+	mov x0, #AT_FDCWD		// local directory
+	mov x8, #56 			// Openat command
+	ldr x1, =szTemp
+
+	// Create file
+	mov x2, #A_RW			// Create the new file
+	mov x3, #S_RW			// permissions
+	svc 0					// service call
+	
+	// x0 now contains the file directory
+	// Write the string
+	ldr x5,=szEndl			// Load x5 with endLs address
+	//ldr x5,[x5]				// Load value inside the address
+	mov x8, #64				// Write
+	mov x1,x5				// Move endL into x1
+	mov x2, #1				// 1 byte to write
+	svc 0
+
+	// ********************** End Print Return *******************
+
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+
+	// return
+	RET
+	
