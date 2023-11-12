@@ -47,7 +47,6 @@ szERROR:	.asciz	"FILE READ ERROR\n"
 szSaveError: 	  .asciz "File could not be saved.\n"
 szSaveSuccess:	  .asciz "File saved successfully.\n"
 szGetFileName:	  .asciz "Please enter file name: "
-szDeleteSuccess:  .asciz "Index deleted successfully.\n"
 
 szTemp:			.skip 512	// Temporary storage for output
 headPtr:		.quad 0		// headPtr
@@ -204,13 +203,7 @@ inFileLoop:
 	
 	cmp x0,#0			// Compare returned byte with 0
 	beq fileDone		// Jump to file done if nothing has been Read
-	
-	ldr x0,=iFD		 	// Load iFDs address into x1
-	ldrb w0,[x0]			// Reload the file discriptor
 
-	b inFileLoop		// reloop to continue reading file
-
-fileDone:
 	ldr x0,=iNodecount	// Load x0 with Nodecounts address
 	ldr x0,[x0]			// Load value in nodecounts address into x0
 	cmp x0,#0			// Check if nodecount is 0
@@ -220,13 +213,11 @@ fileDone:
 	bl String_length	// Branch to string length
 	add x0,x0,#1		// Increment x0
 	bl addTail			// branchd and link to addTail
-
-	// Close file	
-	ldr x0,=iFD		 	// Load x0 with iFDs address
-	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
-	mov x8, #NR_close 	// mov into x8 exit code
-	svc 0			  	// Close the file
-	b mainLoop			// Branch back to mainloop
+	
+	ldr x0,=iFD		 	// Load iFDs address into x1
+	ldrb w0,[x0]			// Reload the file discriptor
+	
+	b inFileLoop		// branch back to keep reading
 
 firstRead:	
 	ldr x0,=szTemp		// Load szTemps address into x0
@@ -234,6 +225,17 @@ firstRead:
 	add x0,x0,#1		// Increment x0
 	bl addFirst			// branchd and link to addTail
 
+	ldr x0,=iFD		 	// Load iFDs address into x1
+	ldrb w0,[x0]			// Reload the file discriptor
+	
+	b inFileLoop		// branch back to keep reading
+
+fileDone:
+	ldr x0,=szTemp		// Load szTemps address into x0
+	bl String_length	// Branch to string length
+	add x0,x0,#1		// Increment x0
+	bl addTail			// branchd and link to addTail
+	
 	// Close file	
 	ldr x0,=iFD		 	// Load x0 with iFDs address
 	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
@@ -265,7 +267,7 @@ delStr:
 	mov x1,x0			// moves value of x0 into x1 (now contains index)
 	ldr x0,=headPtr		// loads value 0 into x20
 
-	b delIndex			// unconditional branch to delIndex
+	bl delIndex			// unconditional branch to delIndex
 	
 	b mainLoop			// unconditional branch to mainLoop
 
@@ -406,7 +408,7 @@ top:
 	bl getchar		// Branch to getchar
 	ldrb w2,[x1]	// load byte in x1 into w2
 	
-	cmp w2, #0xa	// Is char LF?
+	cmp w2, #0x0a	// Is char LF?
 	beq EOLINE		// branch to end of line
 
 	cmp w0, #0x0	// nothing read from file
@@ -422,7 +424,7 @@ top:
 	b top			// branch to top
 
 EOLINE:
-	//add x1,x1,#1	// Increment x1	
+	add x1,x1,#1	// Increment x1	
 	mov w2, #0		// store null at the end of fileBuf replacing the lineFeed
 	strb w2, [x1]	// store w2 into x1
 	b skip			// branch to skip
@@ -823,12 +825,12 @@ delIndex:
 	
 // ************* first index deletion ************* //
 delFirstIndex:
-	ldr x19,[x20,#8]	// Load next address
-	ldr x25,=headPtr	// Load headPtrs address into x25
-	str x19,[x25]		// Point headptr to next Node
+	ldr x24,=iNodecount	// load address of nodecount into x24
+	ldr x24,[x24]		// load value of nodecount into x24
+
+delFirstIndexLoop:
 	
-	mov x0,x20			// Copy address of the first node
-	bl free				// Free the address
+
 	b delIndexEnd
 	
 // ************* last index deletion ************* //
@@ -856,13 +858,7 @@ delIndexFound:
 	b delIndexEnd
 	
 delIndexEnd:
-	ldr x23,=iNodecount	// load address of nodecount into x23
-	ldr x24,[x23]		// load value of nodecount into x24
-	sub x24,x24,#1		// x24 = x24 - 1 (accurate range of indexes of list)
-	str x24,[x23]		// store updated number of indeces into =iNodecount
 
-	ldr x0,=szDeleteSuccess	// load success output
-	bl putstring			// prints
 	
 	// restoring preserved registers x19-x30 (AAPACS)
 	ldr x30, [SP], #16
@@ -878,65 +874,6 @@ delIndexEnd:
     ldr x20, [SP], #16
     ldr x19, [SP], #16	
 	
-	RET			// return
-	
-// ========================== editIndex ========================== // TODO
-// X0 - headPtr address
-// X1 - index to be edited
-// X2 - string to be changed to
-
-editIndex:
-	// preserving registers x19-x30 (AAPCS)
-	str x19, [SP, #-16]!
-	str x20, [SP, #-16]!
-	str x21, [SP, #-16]!
-	str x22, [SP, #-16]!
-	str x23, [SP, #-16]!
-	str x24, [SP, #-16]!
-	str x25, [SP, #-16]!
-	str x26, [SP, #-16]!
-	str x27, [SP, #-16]!
-	str x28, [SP, #-16]!
-	str x29, [SP, #-16]!
-	str	x30, [SP, #-16]!		// Push LR
-	mov x29, SP 	// Set the stack frame
-
-	mov x21,x1			// copy index into x21
-	mov x20,x0			// Copy address of headPtr into x20
-	ldr x20,[x20]		// Load value stored inside address of x20
-
-//	ldr x22,=iNodecount // load x22 with Node count pointer
-//	ldr x22,[x22]		// Load value inside Inodecount into x22
-//	sub x22,x22,#1		// x22 now holds valid range of indexes
-
-	mov x23,#0			// counter
-
-editLoop:
-	cmp x23,x21			// compares counter to index
-	beq editIndexFound	// if equal, jump to editIndexFound
-
-	ldr x20,[x20,#8]	// Increment node address to next one
-	add x23,x23,#1		// Increment counter by 1
-	b editLoop
-
-editIndexFound:
-	// wow how do i do this??
-
-
-	// restoring preserved registers x19-x30 (AAPACS)
-	ldr x30, [SP], #16
-	ldr x29, [SP], #16
-    ldr x28, [SP], #16
-    ldr x27, [SP], #16
-    ldr x26, [SP], #16
-    ldr x25, [SP], #16
-    ldr x24, [SP], #16
-    ldr x23, [SP], #16
-    ldr x22, [SP], #16
-    ldr x21, [SP], #16
-    ldr x20, [SP], #16
-    ldr x19, [SP], #16	
-
 	RET			// return
 	
 // ========================== saveString ========================== //
@@ -976,6 +913,8 @@ saveString:
 	mov x1, x10
 	mov x2, x11
 	svc 0
+	
+
 
 	// ********************** End Print to file ******************* //
 
@@ -993,12 +932,11 @@ saveString:
 	
 	// x0 now contains the file directory
 	// Write the string
-	ldr x5,=szEndl			// Load x5 with endLs address
-	//ldr x5,[x5]				// Load value inside the address
-	mov x8, #64				// Write
-	mov x1,x5				// Move endL into x1
-	mov x2, #1				// 1 byte to write
-	svc 0
+	//ldr x5,=szEndl			// Load x5 with endLs address
+	//mov x8, #64				// Write
+	//mov x1,x5				// Move endL into x1
+	//mov x2, #1				// 1 byte to write
+	//svc 0
 
 	// ********************** End Print Return *******************
 
@@ -1018,4 +956,4 @@ saveString:
 
 	// return
 	RET
-
+	
