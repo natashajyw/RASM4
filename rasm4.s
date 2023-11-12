@@ -7,46 +7,48 @@
 
 .global _start // Provides program starting address
 	
-	.equ O_RDONLY, 0	// Read only code
-	.equ O_WRONLY, 1	// Write only code
-	.equ O_CREAT,  0100	// Create, read & write code
-	.equ C_W,	   0101 // Create, write code
-	.equ A_RW,	  02002 // Append read and write
-	.equ S_RDWR,   0660 // chmod permissions
-	.equ S_RW,   0600	// chmod permissions
-	.equ AT_FDCWD, -100	// local directory (file descriptor)
-	.equ NR_openat, 56  // Openat code
-	.equ NR_close,	57	// close code
-	.equ NR_write,	64	// writing code
-	.equ NR_read,	63	// writing code
-	.equ NR_exit,	93	// exit code
-	.equ MAX_BYTES, 512	// Input maximum bytes
-	.data 		// Data section
+	.equ O_RDONLY, 0    // Read only code
+    .equ O_WRONLY, 1    // Write only code
+    .equ O_CREAT,  0100    // Create, read & write code
+    .equ C_W,       0101 // Create, write code
+    .equ A_RW,      02002 // Append read and write
+    .equ S_RDWR,   0660 // chmod permissions
+    .equ RW___,   0600    // chmod permissions
+    .equ AT_FDCWD, -100    // local directory (file descriptor)
+    .equ NR_openat, 56  // Openat code
+    .equ NR_close,    57    // close code
+    .equ NR_write,    64    // writing code
+    .equ NR_read,    63    // writing code
+    .equ NR_exit,    93    // exit code
+    .equ MAX_BYTES, 512    // Input maximum bytes
+    .data         // Data section
 
 //Strings for output format
 szHeader:		  .asciz "Names: Natasha Wu & Andrew Gharios\nProgram: rasm4.asm\nClass: CS 3B\nDate: 11/13/2023\n"
 szOutfile:		  .asciz "output.txt"
 szInfile:		  .asciz "input.txt"
-szTitle:		  .asciz  "\nRASM4 TEXT EDITOR\n"
-szMem:	      	  .asciz  "Data Structure Memory Consumption: "
-szBytes:		  .asciz  " bytes\n"
-szNumnodes:		  .asciz  "\nNumber of Nodes: "
-szEnterstr:	 	  .asciz  "\nEnter string: "
-szEnterline:	  .asciz  "\nEnter line number: "
-szInvalidIn:	  .asciz  "Invalid index, not in range\n"
-szInvalidIn2:	  .asciz  "Invalid input\n"
-szEnd:			  .asciz  "Thank you for using our program!\n"
-szEmpty:		  .asciz  "\nList is empty!\n"
-szEndl:			  .asciz  "\n"
-szEndfree:		  .asciz  "\nThe Linked-List has been free'd\n\n"
-szList:			  .asciz  "\nAll values in Linked List:\n "
-szLeftB:		  .asciz  "["
-szRightB:		  .asciz  "] "
-szEOF:		.asciz	"Reached the End of File\n"
-szERROR:	.asciz	"FILE READ ERROR\n"
+szTitle:		  .asciz "\nRASM4 TEXT EDITOR\n"
+szMem:	      	  .asciz "Data Structure Memory Consumption: "
+szBytes:		  .asciz " bytes\n"
+szNumnodes:		  .asciz "\nNumber of Nodes: "
+szEnterstr:	 	  .asciz "\nEnter string: "
+szEnterline:	  .asciz "\nEnter line number: "
+szInvalidIn:	  .asciz "Invalid index, not in range\n"
+szInvalidIn2:	  .asciz "Invalid input\n"
+szEnd:			  .asciz "Thank you for using our program!\n"
+szEmpty:		  .asciz "\nList is empty!\n"
+szEndl:			  .asciz "\n"
+szEndfree:		  .asciz "\nThe Linked-List has been freed\n\n"
+szList:			  .asciz "\nAll values in Linked List:\n "
+szLeftB:		  .asciz "["
+szRightB:		  .asciz "] "
+szEOF:			  .asciz "Reached the End of File\n"
+szERROR:		  .asciz "FILE READ ERROR\n"
 szSaveError: 	  .asciz "File could not be saved.\n"
 szSaveSuccess:	  .asciz "File saved successfully.\n"
 szGetFileName:	  .asciz "Please enter file name: "
+szIndexPrompt:	  .asciz "Please enter a valid index: "
+szDeleteSuccess:  .asciz "Index deleted successfully.\n"
 
 szTemp:			.skip 512	// Temporary storage for output
 headPtr:		.quad 0		// headPtr
@@ -220,11 +222,6 @@ fileDone:
 	add x0,x0,#1		// Increment x0
 	bl addTail			// branchd and link to addTail
 
-	// Close file	
-	ldr x0,=iFD		 	// Load x0 with iFDs address
-	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
-	mov x8, #NR_close 	// mov into x8 exit code
-	svc 0			  	// Close the file
 	b mainLoop			// Branch back to mainloop
 
 firstRead:	
@@ -233,11 +230,6 @@ firstRead:
 	add x0,x0,#1		// Increment x0
 	bl addFirst			// branchd and link to addTail
 
-	// Close file	
-	ldr x0,=iFD		 	// Load x0 with iFDs address
-	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
-	mov x8, #NR_close 	// mov into x8 exit code
-	svc 0			  	// Close the file
 	b mainLoop			// Branch back to mainloop
 	
 // ========================== delStr ========================== //
@@ -247,8 +239,8 @@ delStr:
 	cmp x0,#0			// Check if nodecount is 0
 	beq delEmpty		// Branch to delEmpty if list is empty
 
-	ldr x0,=szEnterline	 // Load string to prompt for index
-	bl putstring		// branch and link function putstring
+	ldr x0,=szIndexPrompt	// Load string to prompt for index
+	bl putstring			// branch and link function putstring
 
 	ldr x0,=szTemp		// Load x0 with szTemps address
 	mov x1,MAX_BYTES	// Move into x1 MAX_BYTES constant
@@ -262,7 +254,7 @@ delStr:
 	ble delOutOfRange	// if nodecount >= input index, jump to delOutOfRange
 
 	mov x1,x0			// moves value of x0 into x1 (now contains index)
-	ldr x0,=headPtr		// loads value 0 into x20
+	ldr x0,=headPtr		// loads value 0 into x0
 
 	b delIndex			// unconditional branch to delIndex
 	
@@ -282,9 +274,47 @@ delEmpty:
 
 // ========================== editStr ========================== //
 editStr:
+	ldr x0,=iNodecount	// Load x0 with iNodecounts address
+	ldr x0,[x0]			// Load value in nodecounts address into x0
+	cmp x0,#0			// Check if nodecount is 0
+	beq editEmpty		// Branch to delEmpty if list is empty
+
+	ldr x0,=szIndexPrompt	// Load string to prompt for index
+	bl putstring			// branch and link function putstring
+
+	ldr x0,=szTemp		// Load x0 with szTemps address
+	mov x1,MAX_BYTES	// Move into x1 MAX_BYTES constant
+	bl getstring		// get input from keyboard
+	
+	ldr x0,=szTemp		// Load x0 with szTemps address
+	bl ascint64			// converts string to double
+	ldr x1,=iNodecount	// Load x1 with iNodecounts address
+	ldr x1,[x1]			// Load value in nodecounts address into x1
+	cmp x1,x0			// Check if nodecount is 0
+	ble editOutOfRange	// if nodecount >= input index, jump to delOutOfRange
+
+	mov x1,x0			// moves value of x0 into x1 (now contains index)
+	ldr x0,=headPtr		// loads value 0 into x0
+
+	b editIndex			// unconditional branch to delIndex
+	
+	b mainLoop			// unconditional branch to mainLoop
+
+editOutOfRange:
+	ldr x0,=szInvalidIn	// Load address of szInvalidIn into x0
+	bl  putstring		// print string
+
+	b mainLoop			// unconditional branch to mainLoop
+
+editEmpty:
+	ldr x0,=szEmpty		// Load address of szEmpty into x0
+	bl  putstring		// print string
+
+	b mainLoop			// unconditional branch to mainLoop
 
 // ========================== searchStr ========================== //
 searchStr:
+
 
 // ========================== saveFile ========================== //
 saveFile:
@@ -307,11 +337,8 @@ saveFile:
 
 	// Create file
 	mov x2, #C_W			// Create the new file
-	mov x3, #S_RW			// permissions
+	mov x3, #RW___			// permissions
 	svc 0					// service call
-
-	ldr x1,=iFD				// Load x1 with iFds address
-	strb w0,[x1]			// Store returned file descriptor i iFD
 
 	ldr x19, =iNodecount	// loads address of iNodeCount into x19
 	ldr x19, [x19]			// Number of nodes stored in x19
@@ -340,12 +367,6 @@ endSave:
 	ldr x0, =szSaveSuccess	// loads address of successful save in x0
 	bl  putstring			// prints
 
-	// Close file	
-	ldr x0,=iFD		 	// Load x0 with iFDs address
-	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
-	mov x8, #NR_close 	// mov into x8 exit code
-	svc 0			  	// Close the file
-
     b mainLoop	// unconditional branch to mainLoop
 
 saveError:
@@ -359,7 +380,11 @@ endProgram:
 	ldr x0,=headPtr		// load x0 with headPtr
 	bl freeList			// branch to freeList
 
-	
+	// Close file	
+	ldr x0,=iFD		 	// Load x0 with iFDs address
+	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
+	mov x8, #NR_close 	// mov into x8 exit code
+	svc 0			  	// Close the file
 
 	ldr x0,=szEnd	  	// Load x0 with end of program msg
 	bl putstring	  	// branch to putstring
@@ -782,7 +807,7 @@ endFree:
 	
 	RET			// return
 
-// ========================== delIndex ========================== //
+// ========================== delIndex ========================== // TODO
 // X0 - headPtr address
 // X1 - index to be deleted
 
@@ -822,11 +847,12 @@ delIndex:
 	
 // ************* first index deletion ************* //
 delFirstIndex:
-	ldr x24,=iNodecount	// load address of nodecount into x24
-	ldr x24,[x24]		// load value of nodecount into x24
+	ldr x19,[x20,#8]	// Load next address
+	ldr x25,=headPtr	// Load headPtrs address into x25
+	str x19,[x25]		// Point headptr to next Node
 
-delFirstIndexLoop:
-	
+	mov x0,x20			// Copy address of the first node
+	bl free				// Free the address
 
 	b delIndexEnd
 	
@@ -855,7 +881,13 @@ delIndexFound:
 	b delIndexEnd
 	
 delIndexEnd:
+	ldr x23,=iNodecount	// load address of nodecount into x23
+	ldr x24,[x23]		// load value of nodecount into x24
+	sub x24,x24,#1		// x24 = x24 - 1 (accurate range of indexes of list)
+	str x24,[x23]		// store updated number of indeces into =iNodecount
 
+	ldr x0,=szDeleteSuccess	// load success output
+	bl putstring			// prints
 	
 	// restoring preserved registers x19-x30 (AAPACS)
 	ldr x30, [SP], #16
@@ -873,6 +905,65 @@ delIndexEnd:
 	
 	RET			// return
 	
+// ========================== editIndex ========================== // TODO
+// X0 - headPtr address
+// X1 - index to be edited
+// X2 - string to be changed to
+
+editIndex:
+	// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+	
+	mov x21,x1			// copy index into x21
+	mov x20,x0			// Copy address of headPtr into x20
+	ldr x20,[x20]		// Load value stored inside address of x20
+	
+//	ldr x22,=iNodecount // load x22 with Node count pointer
+//	ldr x22,[x22]		// Load value inside Inodecount into x22
+//	sub x22,x22,#1		// x22 now holds valid range of indexes
+
+	mov x23,#0			// counter
+	
+editLoop:
+	cmp x23,x21			// compares counter to index
+	beq editIndexFound	// if equal, jump to editIndexFound
+	
+	ldr x20,[x20,#8]	// Increment node address to next one
+	add x23,x23,#1		// Increment counter by 1
+	b editLoop
+	
+editIndexFound:
+	// wow how do i do this??
+
+
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+	
+	RET			// return
+
 // ========================== saveString ========================== //
 // X10 - holds string
 // X11 - length of string
@@ -901,7 +992,7 @@ saveString:
 
 	// Create file
 	mov x2, #A_RW			// Create the new files
-	mov x3, #S_RW			// permissions
+	mov x3, #RW___			// permissions
 	svc 0					// service call
 
 	// x0 now contains the file directory
@@ -922,17 +1013,8 @@ saveString:
 
 	// Create file
 	mov x2, #A_RW			// Create the new file
-	mov x3, #S_RW			// permissions
+	mov x3, #RW___			// permissions
 	svc 0					// service call
-	
-	// x0 now contains the file directory
-	// Write the string
-	ldr x5,=szEndl			// Load x5 with endLs address
-	//ldr x5,[x5]				// Load value inside the address
-	mov x8, #64				// Write
-	mov x1,x5				// Move endL into x1
-	mov x2, #1				// 1 byte to write
-	svc 0
 
 	// ********************** End Print Return *******************
 
@@ -952,4 +1034,4 @@ saveString:
 
 	// return
 	RET
-
+	
