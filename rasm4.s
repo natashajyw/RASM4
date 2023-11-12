@@ -821,13 +821,13 @@ delIndex:
 	b delIndexLoop		// unconditional branch to delIndexLoop
 	
 // ************* first index deletion ************* //
-delFirstIndex:
-	ldr x24,=iNodecount	// load address of nodecount into x24
-	ldr x24,[x24]		// load value of nodecount into x24
-
-delFirstIndexLoop:
+delIndexEnd:
+	ldr x19,[x20,#8]	// Load next address
+	ldr x25,=headPtr	// Load headPtrs address into x25
+	str x19,[x25]		// Point headptr to next Node
 	
-
+	mov x0,x20			// Copy address of the first node
+	bl free				// Free the address
 	b delIndexEnd
 	
 // ************* last index deletion ************* //
@@ -855,7 +855,13 @@ delIndexFound:
 	b delIndexEnd
 	
 delIndexEnd:
+	ldr x23,=iNodecount	// load address of nodecount into x23
+	ldr x24,[x23]		// load value of nodecount into x24
+	sub x24,x24,#1		// x24 = x24 - 1 (accurate range of indexes of list)
+	str x24,[x23]		// store updated number of indeces into =iNodecount
 
+	ldr x0,=szDeleteSuccess	// load success output
+	bl putstring			// prints
 	
 	// restoring preserved registers x19-x30 (AAPACS)
 	ldr x30, [SP], #16
@@ -871,6 +877,65 @@ delIndexEnd:
     ldr x20, [SP], #16
     ldr x19, [SP], #16	
 	
+	RET			// return
+	
+// ========================== editIndex ========================== // TODO
+// X0 - headPtr address
+// X1 - index to be edited
+// X2 - string to be changed to
+
+editIndex:
+	// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+
+	mov x21,x1			// copy index into x21
+	mov x20,x0			// Copy address of headPtr into x20
+	ldr x20,[x20]		// Load value stored inside address of x20
+
+//	ldr x22,=iNodecount // load x22 with Node count pointer
+//	ldr x22,[x22]		// Load value inside Inodecount into x22
+//	sub x22,x22,#1		// x22 now holds valid range of indexes
+
+	mov x23,#0			// counter
+
+editLoop:
+	cmp x23,x21			// compares counter to index
+	beq editIndexFound	// if equal, jump to editIndexFound
+
+	ldr x20,[x20,#8]	// Increment node address to next one
+	add x23,x23,#1		// Increment counter by 1
+	b editLoop
+
+editIndexFound:
+	// wow how do i do this??
+
+
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+
 	RET			// return
 	
 // ========================== saveString ========================== //
