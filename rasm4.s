@@ -910,8 +910,6 @@ saveString:
 	mov x1, x10
 	mov x2, x11
 	svc 0
-	
-
 
 	// ********************** End Print to file ******************* //
 
@@ -954,4 +952,4 @@ saveString:
 
 	// return
 	RET
-	
+
