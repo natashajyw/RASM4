@@ -821,7 +821,7 @@ delIndex:
 	b delIndexLoop		// unconditional branch to delIndexLoop
 	
 // ************* first index deletion ************* //
-delIndexEnd:
+delFirstIndex:
 	ldr x19,[x20,#8]	// Load next address
 	ldr x25,=headPtr	// Load headPtrs address into x25
 	str x19,[x25]		// Point headptr to next Node
