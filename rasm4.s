@@ -47,6 +47,7 @@ szERROR:	.asciz	"FILE READ ERROR\n"
 szSaveError: 	  .asciz "File could not be saved.\n"
 szSaveSuccess:	  .asciz "File saved successfully.\n"
 szGetFileName:	  .asciz "Please enter file name: "
+szDeleteSuccess:  .asciz "Index deleted successfully.\n"
 
 szTemp:			.skip 512	// Temporary storage for output
 headPtr:		.quad 0		// headPtr
@@ -253,7 +254,7 @@ delStr:
 	ldr x0,=szTemp		// Load x0 with szTemps address
 	mov x1,MAX_BYTES	// Move into x1 MAX_BYTES constant
 	bl getstring		// get input from keyboard
-		
+	
 	ldr x0,=szTemp		// Load x0 with szTemps address
 	bl ascint64			// converts string to double
 	ldr x1,=iNodecount	// Load x1 with iNodecounts address
@@ -264,7 +265,7 @@ delStr:
 	mov x1,x0			// moves value of x0 into x1 (now contains index)
 	ldr x0,=headPtr		// loads value 0 into x20
 
-	b delIndex			// unconditional branch to delIndex
+	bl delIndex			// unconditional branch to delIndex
 	
 	b mainLoop			// unconditional branch to mainLoop
 
@@ -282,6 +283,43 @@ delEmpty:
 
 // ========================== editStr ========================== //
 editStr:
+	ldr x0,=iNodecount	// Load x0 with iNodecounts address
+	ldr x0,[x0]			// Load value in nodecounts address into x0
+	cmp x0,#0			// Check if nodecount is 0
+	beq editEmpty		// Branch to delEmpty if list is empty
+
+	ldr x0,=szEnterline	// Load string to prompt for index
+	bl putstring		// branch and link function putstring
+
+	ldr x0,=szTemp		// Load x0 with szTemps address
+	mov x1,MAX_BYTES	// Move into x1 MAX_BYTES constant
+	bl getstring		// get input from keyboard
+	
+	ldr x0,=szTemp		// Load x0 with szTemps address
+	bl ascint64			// converts string to double
+	ldr x1,=iNodecount	// Load x1 with iNodecounts address
+	ldr x1,[x1]			// Load value in nodecounts address into x1
+	cmp x1,x0			// Check if nodecount is 0
+	ble editOutOfRange	// if nodecount >= input index, jump to delOutOfRange
+
+	mov x1,x0			// moves value of x0 into x1 (now contains index)
+	ldr x0,=headPtr		// loads value 0 into x0
+
+	b editIndex			// unconditional branch to delIndex
+	
+	b mainLoop			// unconditional branch to mainLoop
+
+editOutOfRange:
+	ldr x0,=szInvalidIn	// Load address of szInvalidIn into x0
+	bl  putstring		// print string
+
+	b mainLoop			// unconditional branch to mainLoop
+
+editEmpty:
+	ldr x0,=szEmpty		// Load address of szEmpty into x0
+	bl  putstring		// print string
+
+	b mainLoop			// unconditional branch to mainLoop
 
 // ========================== searchStr ========================== //
 searchStr:
@@ -386,7 +424,7 @@ getchar:
 	
 //**GETLINE**//
 getline:
-		// preserving registers x19-x30 (AAPCS)
+	// preserving registers x19-x30 (AAPCS)
 	str x19, [SP, #-16]!
 	str x20, [SP, #-16]!
 	str x21, [SP, #-16]!
@@ -806,7 +844,6 @@ delIndex:
 	ldr x20,[x20]	// Load address of the first node its potinting to
 	
 	mov x21,x1		// move index # into x21
-	mov x22,#0		// x22 serves as counter (starts from 0)
 	
 	cmp x21,#0			// compares x21(index) with 0
 	beq delFirstIndex	// if equal, branch to delFirstIndex
@@ -818,10 +855,20 @@ delIndex:
 	cmp x21,x23			// compares x21(index) with x23(last # of index)
 	beq delLastIndex	// if equal, branch to delLastIndex
 	
-	b delIndexLoop		// unconditional branch to delIndexLoop
+	b delMiddleIndex	// unconditional branch to delMiddleIndex
 	
 // ************* first index deletion ************* //
-delIndexEnd:
+delFirstIndex:
+	//calculate bytes
+	mov x0, x20			// moving string into x0
+	bl String_length	// branch and link function String_length
+	mov x1,#16			// move 16 into x1
+	add x1,x0,x1        // Add 16 bytes to strlength and store in x1
+	ldr x0,=iBytecount  // Load Bytecounts address into x0
+    ldr x2,[x0]         // Copy value in Bytecount into x2
+    sub x2,x2,x1        // bytecount = bytecount - x1
+    str x2,[x0]         // Store new bytecount from x2 into the address
+
 	ldr x19,[x20,#8]	// Load next address
 	ldr x25,=headPtr	// Load headPtrs address into x25
 	str x19,[x25]		// Point headptr to next Node
@@ -830,28 +877,71 @@ delIndexEnd:
 	bl free				// Free the address
 	b delIndexEnd
 	
-// ************* last index deletion ************* //
-delLastIndex:
-	mov x25, #8			// Loads x25 into 
+// ************* last index deletion ************* // NOT WORKING
+delLastIndex: 
+	mov x22,#0		// x22 serves as counter (starts from 0)
+	mov x19,#0		// initializing x19
 
 delLastIndexLoop:
+	cmp x22,x23				// compares index with last # of index
+	beq delLastIndexFound	// jumps to delLastIndexFound
+
+	add x22,x22,#1		// increments counter by 1
+	mov x24,x19			// moves previous address into x24
 	ldr x19,[x20,#8]	// Load next address
-	cmp x19,#0			// Check if next is null
-	b delLastIndexLoop	// 
 	
+	b delLastIndexLoop	// unconditional loop
+	
+delLastIndexFound:
+	//calculate bytes
+	mov x0, x19			// moving string into x0
+	bl String_length	// branch and link function String_length
+	mov x1,#16			// move 16 into x1
+	add x1,x0,x1        // Add 16 bytes to strlength and store in x1
+	ldr x0,=iBytecount  // Load Bytecounts address into x0
+    ldr x2,[x0]         // Copy value in Bytecount into x2
+    sub x2,x2,x1        // bytecount = bytecount - x1
+    str x2,[x0]         // Store new bytecount from x2 into the address
+
+	ldr x25,=tailPtr	// load tailPtrs address into x25
+	str x24,[x25]		// Point tailPtr to previous Node
+	
+	mov x0,x19			// Copy address of the last node
+	bl free				// Free the address
 	b delIndexEnd
 
-// ************* middle index deletion ************* //
-delIndexLoop:
-	cmp x22,x21			// compares counter to index
-	beq delIndexFound	// if equal, jump to delIndexFound
+// ************* middle index deletion ************* // NOT WORKING EITHER
+delMiddleIndex:
+	mov x22,#0		// x22 serves as counter (starts from 0)
+	mov x19,#0		// initializing x19
+	mov x29,#0		// initializing x29
 	
+delMiddleIndexLoop:
+	cmp x22,x21				// compares index with wanted index #
+	beq delMiddleIndexFound	// jumps to delMiddleIndexFound
+
+	add x22,x22,#1			// increments counter by 1
+	mov x24,x19				// moves previous address into x24
+	ldr x19,[x20,#8]		// Load next address
+	ldr x29,[x19,#8]		// Load next next address
 	
-	ldr x20,[x20,#8]	// Increment node address to next one
-	add x22,x22,#1		// x22 = x22 + 1
+	b delMiddleIndexLoop 	// unconditional loop
 	
-delIndexFound:
+delMiddleIndexFound:
+	//calculate bytes
+	mov x0, x19			// moving string into x0
+	bl String_length	// branch and link function String_length
+	mov x1,#16			// move 16 into x1
+	add x1,x0,x1        // Add 16 bytes to strlength and store in x1
+	ldr x0,=iBytecount  // Load Bytecounts address into x0
+    ldr x2,[x0]         // Copy value in Bytecount into x2
+    sub x2,x2,x1        // bytecount = bytecount - x1
+    str x2,[x0]         // Store new bytecount from x2 into the address
 	
+	//todo - linking nodes
+	
+	mov x0,x19			// Copy address of the last node
+	bl free				// Free the address
 	b delIndexEnd
 	
 delIndexEnd:
