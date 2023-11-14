@@ -1119,15 +1119,6 @@ saveString:
 	mov x2, #A_RW			// Create the new file
 	mov x3, #S_RW			// permissions
 	svc 0					// service call
-	
-	// x0 now contains the file directory
-	// Write the string
-	ldr x5,=szEndl			// Load x5 with endLs address
-	//ldr x5,[x5]				// Load value inside the address
-	mov x8, #64				// Write
-	mov x1,x5				// Move endL into x1
-	mov x2, #1				// 1 byte to write
-	svc 0
 
 	// ********************** End Print Return *******************
 
