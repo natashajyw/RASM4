@@ -204,13 +204,7 @@ inFileLoop:
 	
 	cmp x0,#0			// Compare returned byte with 0
 	beq fileDone		// Jump to file done if nothing has been Read
-	
-	ldr x0,=iFD		 	// Load iFDs address into x1
-	ldrb w0,[x0]			// Reload the file discriptor
 
-	b inFileLoop		// reloop to continue reading file
-
-fileDone:
 	ldr x0,=iNodecount	// Load x0 with Nodecounts address
 	ldr x0,[x0]			// Load value in nodecounts address into x0
 	cmp x0,#0			// Check if nodecount is 0
@@ -220,13 +214,11 @@ fileDone:
 	bl String_length	// Branch to string length
 	add x0,x0,#1		// Increment x0
 	bl addTail			// branchd and link to addTail
-
-	// Close file	
-	ldr x0,=iFD		 	// Load x0 with iFDs address
-	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
-	mov x8, #NR_close 	// mov into x8 exit code
-	svc 0			  	// Close the file
-	b mainLoop			// Branch back to mainloop
+	
+	ldr x0,=iFD		 	// Load iFDs address into x1
+	ldrb w0,[x0]			// Reload the file discriptor
+	
+	b inFileLoop		// branch back to keep reading
 
 firstRead:	
 	ldr x0,=szTemp		// Load szTemps address into x0
@@ -234,6 +226,17 @@ firstRead:
 	add x0,x0,#1		// Increment x0
 	bl addFirst			// branchd and link to addTail
 
+	ldr x0,=iFD		 	// Load iFDs address into x1
+	ldrb w0,[x0]			// Reload the file discriptor
+	
+	b inFileLoop		// branch back to keep reading
+
+fileDone:
+	ldr x0,=szTemp		// Load szTemps address into x0
+	bl String_length	// Branch to string length
+	add x0,x0,#1		// Increment x0
+	bl addTail			// branchd and link to addTail
+	
 	// Close file	
 	ldr x0,=iFD		 	// Load x0 with iFDs address
 	ldrb w0,[x0]	  	// Load byte in address of x0 in w0.
@@ -458,7 +461,7 @@ top:
 	bl getchar		// Branch to getchar
 	ldrb w2,[x1]	// load byte in x1 into w2
 	
-	cmp w2, #0xa	// Is char LF?
+	cmp w2, #0x0a	// Is char LF?
 	beq EOLINE		// branch to end of line
 
 	cmp w0, #0x0	// nothing read from file
@@ -474,7 +477,7 @@ top:
 	b top			// branch to top
 
 EOLINE:
-	//add x1,x1,#1	// Increment x1	
+	add x1,x1,#1	// Increment x1	
 	mov w2, #0		// store null at the end of fileBuf replacing the lineFeed
 	strb w2, [x1]	// store w2 into x1
 	b skip			// branch to skip
@@ -493,9 +496,6 @@ ERROR:
 	b skip				// branch to skip
 	
 skip:
-	//add x1,x1,#1	// Increment x1
-	//mov w2, #0		// store null at the end of fileBuf replacing the lineFeed
-	//strb w2, [x1]	// store w2 into x1
 	// restoring preserved registers x19-x30 (AAPACS)
 	ldr x30, [SP], #16
 	ldr x29, [SP], #16
@@ -510,6 +510,8 @@ skip:
     ldr x20, [SP], #16
     ldr x19, [SP], #16	
 	RET					// return getline
+	
+
 	
 
 // ========================== addFirst ========================== //
@@ -885,6 +887,15 @@ delFirstIndex:
     str x2,[x0]         // Store new bytecount from x2 into the address
 
 	ldr x19,[x20,#8]	// Load next address
+	str x19, [SP, #-16]! // Store the next nodes address onto the stack
+	str x20, [SP, #-16]! // Store the next nodes address onto the stack
+	
+	ldr x0,[x20,#0]		// Load current Nodes string 
+	bl free				// Free the string space
+	
+	ldr x20, [SP], #16	// Holds currentNode address
+	ldr x19, [SP], #16	// Holds nextNode address
+	
 	ldr x25,=headPtr	// Load headPtrs address into x25
 	str x19,[x25]		// Point headptr to next Node
 	
@@ -895,15 +906,18 @@ delFirstIndex:
 // ************* last index deletion ************* // NOT WORKING
 delLastIndex: 
 	mov x22,#0		// x22 serves as counter (starts from 0)
-	mov x19,#0		// initializing x19
+
+	mov x19,#0		// initializing x19 
+	mov x24,#0		// Initializing x24
 
 delLastIndexLoop:
 	cmp x22,x23				// compares index with last # of index
 	beq delLastIndexFound	// jumps to delLastIndexFound
 
 	add x22,x22,#1		// increments counter by 1
-	mov x24,x19			// moves previous address into x24
-	ldr x19,[x20,#8]	// Load next address
+
+	ldr x24,[x20,#8]	// Load next address
+	ldr x19,[x24,#8]	// Load next next address
 	
 	b delLastIndexLoop	// unconditional loop
 	
@@ -918,6 +932,17 @@ delLastIndexFound:
     sub x2,x2,x1        // bytecount = bytecount - x1
     str x2,[x0]         // Store new bytecount from x2 into the address
 
+	str x19, [SP, #-16]! // Store the currentNodes address onto the stack
+	str x24, [SP, #-16]! // Store the prevNodes address onto the stack
+
+	ldr x0,[x19,#0]		// Load string in currentNode
+	bl free				// Free the space 
+	
+	ldr x24, [SP], #16	// Holds prevNode address
+	ldr x19, [SP], #16	// Holds currentNode address
+	
+	mov x0,#0			// Move a 0 into x0
+	str x0,[x24,#8]		// Point first Nodenext* to 0(Null)
 	ldr x25,=tailPtr	// load tailPtrs address into x25
 	str x24,[x25]		// Point tailPtr to previous Node
 	
@@ -930,7 +955,7 @@ delMiddleIndex:
 	mov x22,#0		// x22 serves as counter (starts from 0)
 	mov x19,#0		// initializing x19
 	mov x29,#0		// initializing x29
-	
+
 delMiddleIndexLoop:
 	cmp x22,x21				// compares index with wanted index #
 	beq delMiddleIndexFound	// jumps to delMiddleIndexFound
@@ -953,8 +978,7 @@ delMiddleIndexFound:
     sub x2,x2,x1        // bytecount = bytecount - x1
     str x2,[x0]         // Store new bytecount from x2 into the address
 	
-	//str x29,[x24]
-	//ldr x24,
+	str x29,[x24,#8]	// point prevNext* to Next node.
 	
 	mov x0,x19			// Copy address of the last node
 	bl free				// Free the address
