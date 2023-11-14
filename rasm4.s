@@ -27,23 +27,23 @@
 szHeader:		  .asciz "Names: Natasha Wu & Andrew Gharios\nProgram: rasm4.asm\nClass: CS 3B\nDate: 11/13/2023\n"
 szOutfile:		  .asciz "output.txt"
 szInfile:		  .asciz "input.txt"
-szTitle:		  .asciz  "\nRASM4 TEXT EDITOR\n"
-szMem:	      	  .asciz  "Data Structure Memory Consumption: "
-szBytes:		  .asciz  " bytes\n"
-szNumnodes:		  .asciz  "\nNumber of Nodes: "
-szEnterstr:	 	  .asciz  "\nEnter string: "
-szEnterline:	  .asciz  "\nEnter line number: "
-szInvalidIn:	  .asciz  "Invalid index, not in range\n"
-szInvalidIn2:	  .asciz  "Invalid input\n"
-szEnd:			  .asciz  "Thank you for using our program!\n"
-szEmpty:		  .asciz  "\nList is empty!\n"
-szEndl:			  .asciz  "\n"
-szEndfree:		  .asciz  "\nThe Linked-List has been free'd\n\n"
-szList:			  .asciz  "\nAll values in Linked List:\n "
-szLeftB:		  .asciz  "["
-szRightB:		  .asciz  "] "
-szEOF:		.asciz	"Reached the End of File\n"
-szERROR:	.asciz	"FILE READ ERROR\n"
+szTitle:		  .asciz "\nRASM4 TEXT EDITOR\n"
+szMem:	      	  .asciz "Data Structure Memory Consumption: "
+szBytes:		  .asciz " bytes\n"
+szNumnodes:		  .asciz "\nNumber of Nodes: "
+szEnterstr:	 	  .asciz "\nEnter string: "
+szEnterline:	  .asciz "\nEnter line number: "
+szInvalidIn:	  .asciz "Invalid index, not in range\n"
+szInvalidIn2:	  .asciz "Invalid input\n"
+szEnd:			  .asciz "Thank you for using our program!\n"
+szEmpty:		  .asciz "\nList is empty!\n"
+szEndl:			  .asciz "\n"
+szEndfree:		  .asciz "\nThe Linked-List has been freed\n\n"
+szList:			  .asciz "\nAll values in Linked List:\n "
+szLeftB:		  .asciz "["
+szRightB:		  .asciz "] "
+szEOF:			  .asciz "Reached the End of File\n"
+szERROR:		  .asciz "FILE READ ERROR\n"
 szSaveError: 	  .asciz "File could not be saved.\n"
 szSaveSuccess:	  .asciz "File saved successfully.\n"
 szGetFileName:	  .asciz "Please enter file name: "
@@ -323,6 +323,23 @@ editEmpty:
 
 // ========================== searchStr ========================== //
 searchStr:
+	ldr x0,=iNodecount	// Load x0 with iNodecounts address
+	ldr x0,[x0]			// Load value in nodecounts address into x0
+	cmp x0,#0			// Check if nodecount is 0
+	beq editEmpty		// Branch to delEmpty if list is empty
+	
+	ldr x0,=szEnterstr	// Load string to prompt for index
+	bl putstring		// branch and link function putstring
+	
+	ldr x0,=szTemp		// Load x0 with szTemps address
+	mov x1,MAX_BYTES	// Move into x1 MAX_BYTES constant
+	bl getstring		// get input from keyboard
+	
+	ldr x0,=headPtr		// load x0 with headPtrs address
+	ldr x1,=iNodecount	// load x1 with iNodecounts address
+	bl stringSearch		// branch and link function stringSearch
+	
+	b  mainLoop			// unconditional branch to mainLoop
 
 // ========================== saveFile ========================== //
 saveFile:
@@ -396,8 +413,6 @@ saveError:
 endProgram:
 	ldr x0,=headPtr		// load x0 with headPtr
 	bl freeList			// branch to freeList
-
-	
 
 	ldr x0,=szEnd	  	// Load x0 with end of program msg
 	bl putstring	  	// branch to putstring
@@ -938,7 +953,8 @@ delMiddleIndexFound:
     sub x2,x2,x1        // bytecount = bytecount - x1
     str x2,[x0]         // Store new bytecount from x2 into the address
 	
-	//todo - linking nodes
+	//str x29,[x24]
+	//ldr x24,
 	
 	mov x0,x19			// Copy address of the last node
 	bl free				// Free the address
@@ -1108,3 +1124,189 @@ saveString:
 	// return
 	RET
 
+// ========================== stringSearch ========================== //
+stringSearch:
+// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+	
+	mov x21,x1			// copy number of nodes into x19
+	mov x20,x0			// Copy address of headPtr into x20
+	ldr x20,[x20]		// Load value stored inside address of x20
+	
+	ldr x21,[x21]		// load value in iNodecount into x21
+	
+searchLoop:
+	ldr x0,[x20,#0]		// Address of current string headptr is pointing to
+	ldr x2,=szTemp		// Load x0 with szTemps address
+	
+	bl stringEquals		// unconditional branch to stringEquals
+	
+	cmp x0,#0			// compares x0 to 0
+	beq searchPrintSkip	// if equal, branch to searchPrintSkip
+	
+searchPrintLoop:
+	ldr x0,=szLeftB		// Load x0 with Left bracket string address
+	bl putstring		// branch to putstring
+	
+	ldr x0,=dbIndex		// Load x0 with dbIndexs address
+	ldr x0,[x0]			// Load index from dbIndex into x0
+	ldr x1,=szTemp		// Load szTemps address into x1
+	bl int64asc			// convert from int64 to asciz
+	ldr x0,=szTemp		// Load szTemps address in x0
+	bl putstring		// branch to print string
+	
+	ldr x0,=szRightB	// Load x0 with Left bracket string address
+	bl putstring		// branch to putstring
+
+	ldr x0,[x20,#0]		// Address of current string headptr is pointing to
+	bl putstring		// call putstring to print at current address
+	
+	ldr x0,=chCr		// Load x0 with Carriage return byte
+	bl putch			// Call putch
+	ldr x0,=chCr		// Load x0 with Carriage return byte
+	bl putch			// Call putch
+	
+searchPrintSkip:
+	sub x21,x21,#1		// decrement nodeCounter Copy
+	cmp x21,#0			// Check if nodeCount copy has reached 0
+	beq searchEndPrint	// Stop printing when all nodes have been traversed
+
+	ldr x0,=dbIndex		// Load dbIndexs address into x0
+	ldr x1,[x0]			// Load the value inside dbIndex into x1
+	add x1,x1,#1		// Increment
+	str x1,[x0]			// Store incremented value back into dbIndex
+
+	ldr x20,[x20,#8]	// Increment node address to next one
+	b searchLoop		// branch back to printing loop
+	
+searchEndPrint:
+	ldr x0,=dbIndex		// Load dbIndexs address into x0
+	mov x1,#0			// Move a 0 into x1
+	str x1,[x0]			// Reset dbIndex to 0
+	
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+	
+	RET			// return
+	
+// ========================== stringEquals ========================== //
+stringEquals:
+	// preserving registers x19-x30 (AAPCS)
+	str x19, [SP, #-16]!
+	str x20, [SP, #-16]!
+	str x21, [SP, #-16]!
+	str x22, [SP, #-16]!
+	str x23, [SP, #-16]!
+	str x24, [SP, #-16]!
+	str x25, [SP, #-16]!
+	str x26, [SP, #-16]!
+	str x27, [SP, #-16]!
+	str x28, [SP, #-16]!
+	str x29, [SP, #-16]!
+	str	x30, [SP, #-16]!		// Push LR
+	mov x29, SP 	// Set the stack frame
+	
+	mov x20, x0			// copies string address from x0 to x20
+	mov x22, x2 		// copies string address from x2 to x22
+	
+	mov x0, x22 		// moves substring address from x22 to x0 
+	bl	String_length	// branch and link to function string_Length
+	mov x29, x0			// x29 also holds string length of substring
+	
+	mov x0, x20			// moves string address from x20 to X0
+	bl  String_length	// branch and link to function string_length
+	mov x27, x0			// x27 holds string length of string
+	
+	sub x27, x27, x29	// x27 = string length - substring length
+	
+	mov x21, #0			// initializing loop counter
+	mov x28, #0		// counter for index
+
+// x20: string address
+// x22: substring address
+// x27: string length - substring length
+// x29: substring length
+// x28: index counter
+compareIndexLoop:
+	cmp x28, x27		// comparing index counter to x27
+	bgt	compareFalse	// if x28 > x27, branch to compareFalse
+	
+	mov x19, x29 		// x19 will become the counter (string length of substring)
+	mov x25, #0			// x25 is offset for substring
+	
+compareMainLoop:
+	ldrb w23, [x20, x28]	// gets a byte from the pointer + offset
+	ldrb w24, [x22, x25]	// gets a byte from the pointer + offset
+
+	cmp w23, #96			// compares w23 to ASCII val "a"
+	blt compareCont			// if char is already uppercase, jump to compareCont
+	
+	sub w23, w23, #32		// else, turns the lowercase character uppercase
+
+compareCont:
+	cmp w24, #96			// compares w24 to ASCII val "a"
+	blt	compareCont2		// if char is already uppercase, jump to compareCont2
+
+	sub w24, w24, #32		// else, turns the lowercase character uppercase
+
+compareCont2:
+	add x28, x28, #1		// x28 = x28 + 1
+	cmp	w23, w24			// compares the two bytes
+	bne compareIndexLoop	// if w23 and w24 are not equal, branches to compareIndexLoop
+	
+	add x25, x25, #1		// x25 = x25 + 1
+	
+	sub x19, x19, #1		// x19 = x19 - 1
+	cmp x19, #0				// compares x19 to 0
+	beq compareTrue			// if equal, branches to true
+	
+	b	compareMainLoop		// unconditional branch to compareMainLoop
+	
+compareTrue:
+	mov x0, #1
+	b compareExit
+
+compareFalse:
+	mov x0, #0
+	
+compareExit:
+	// restoring preserved registers x19-x30 (AAPACS)
+	ldr x30, [SP], #16
+	ldr x29, [SP], #16
+    ldr x28, [SP], #16
+    ldr x27, [SP], #16
+    ldr x26, [SP], #16
+    ldr x25, [SP], #16
+    ldr x24, [SP], #16
+    ldr x23, [SP], #16
+    ldr x22, [SP], #16
+    ldr x21, [SP], #16
+    ldr x20, [SP], #16
+    ldr x19, [SP], #16	
+
+	// return
+	RET
+	
